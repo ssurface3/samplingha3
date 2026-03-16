@@ -10,17 +10,7 @@ conda create -n gfn-smc-jax python=3.10.14
 conda activate gfn-smc-jax
 ```
 
-Install tensorflow first since it sometimes causes conflicts with other packages.
-```bash
-pip install tensorflow==2.16.1
-```
-
-Install the jax and jaxlib with the appropriate CUDA version or TPU support, e.g., cuda12
-```bash
-pip install -U "jax[cuda12]==0.6.2"
-```
-
-Install the other dependencies.
+Install dependencies.
 ```bash
 pip install -r requirements.txt
 ```
