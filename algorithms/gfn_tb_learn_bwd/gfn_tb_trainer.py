@@ -10,7 +10,7 @@ import jax
 import jax.numpy as jnp
 import wandb
 
-from algorithms.common.diffusion_related.init_model import init_model
+from algorithms.common.diffusion_related.init_model import init_model_with_learn_bwd
 from algorithms.common.eval_methods.stochastic_oc_methods import get_eval_fn
 from algorithms.gfn_tb.buffer import build_terminal_state_buffer
 from algorithms.gfn_tb.gfn_tb_rnd import rnd, loss_fn
@@ -64,7 +64,7 @@ def gfn_tb_trainer(cfg, target):
 
     # Initialize the model
     key, key_gen = jax.random.split(key_gen)
-    model_state = init_model(key, dim, alg_cfg)
+    model_state = init_model_with_learn_bwd(key, dim, alg_cfg)
 
     rnd_partial_base = partial(
         rnd,

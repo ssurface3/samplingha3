@@ -21,6 +21,7 @@ def log_prob_kernel(x, mean, scale):
     return dist.log_prob(x)
 
 
+# TODO: Implement this, code from gfn_tb is provided for reference here
 def per_sample_rnd_pinned_brownian(
     key,
     model_state,

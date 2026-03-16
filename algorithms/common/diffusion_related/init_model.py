@@ -5,6 +5,7 @@ from flax.training.train_state import TrainState
 from flax.traverse_util import path_aware_map
 
 from algorithms.common.models.pisgrad_net import PISGRADNet
+from algorithms.common.models.pisgrad_net_learn_bwd import PISGRADNetLearnBwd
 
 
 def pisgrad_net_label_map(path, _):
@@ -50,7 +51,9 @@ def init_model(key, dim, alg_cfg) -> TrainState:
             case "cosine":
                 decay_steps = max(alg_cfg.iters, 1)
                 return optax.cosine_decay_schedule(
-                    init_value=base_lr, decay_steps=decay_steps, alpha=sched_cfg.end_factor
+                    init_value=base_lr,
+                    decay_steps=decay_steps,
+                    alpha=sched_cfg.end_factor,
                 )
             case _:
                 raise ValueError(f"Invalid learning rate scheduler type: {sched_type}")
@@ -78,7 +81,9 @@ def init_model(key, dim, alg_cfg) -> TrainState:
         )
     else:  # "gfn" in alg_cfg.name
         optimizers_map = {
-            "network_optim": optax.adam(learning_rate=build_lr_schedule(alg_cfg.step_size))
+            "network_optim": optax.adam(
+                learning_rate=build_lr_schedule(alg_cfg.step_size)
+            )
         }
         if "gfn_subtb" in alg_cfg.name:
             optimizers_map["logflow_optim"] = optax.adam(
@@ -90,7 +95,9 @@ def init_model(key, dim, alg_cfg) -> TrainState:
                     learning_rate=build_lr_schedule(alg_cfg.beta_step_size)
                 )
 
-        if not ("gfn_tb" in alg_cfg.name and alg_cfg.loss_type == "lv"):  # for lv, logZ is not used
+        if not (
+            "gfn_tb" in alg_cfg.name and alg_cfg.loss_type == "lv"
+        ):  # for lv, logZ is not used
             params["params"]["logZ"] = jnp.array((alg_cfg.init_logZ,))
             optimizers_map["logZ_optim"] = optax.adam(
                 learning_rate=build_lr_schedule(alg_cfg.logZ_step_size)
@@ -112,3 +119,7 @@ def init_model(key, dim, alg_cfg) -> TrainState:
     model_state = TrainState.create(apply_fn=model.apply, params=params, tx=optimizer)
 
     return model_state
+
+
+def init_model_with_learn_bwd(key, dim, alg_cfg) -> TrainState:
+    raise ValueError("Implement model initialization here of PISGRADNetLearnBwd")
