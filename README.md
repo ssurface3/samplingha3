@@ -1,5 +1,7 @@
 # Optional Homework: Diffusion Samplers
 
+In this task you need to implement a diffusion sampler `algorithms/gfn_tb_learn_bwd` with both learnable forward and backward kernels defined in a problem set PDF. Compare results in terms of ELBO, EUBO and SD with the baseline `algorithms/gfn_tb`. Run both algorithms on a Gaussian Mixture. For your experiments try to pick several number of components of the mixture (e.g. 2, 5, 10) and several dimensions (e.g. 2, 5, 10). These parameters for the target distribution can be changed in `configs/gaussian_mixture.yaml`.
+
 ## What you need to implement
 - Model itself in `algorithms/common/models/pisgrad_net_learn_bwd.py`
 - Model initialization in `algorithms/common/diffusion_related/init_model.py`
