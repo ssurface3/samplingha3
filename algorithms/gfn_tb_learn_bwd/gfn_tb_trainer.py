@@ -13,7 +13,7 @@ import wandb
 from algorithms.common.diffusion_related.init_model import init_model_with_learn_bwd
 from algorithms.common.eval_methods.stochastic_oc_methods import get_eval_fn
 from algorithms.gfn_tb.buffer import build_terminal_state_buffer
-from algorithms.gfn_tb.gfn_tb_rnd import rnd, loss_fn
+from algorithms.gfn_tb_learn_bwd.gfn_tb_rnd import rnd, loss_fn
 from algorithms.gfn_tb.utils import get_invtemp
 from eval.utils import extract_last_entry
 from utils.print_utils import print_results

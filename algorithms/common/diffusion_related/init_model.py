@@ -122,4 +122,79 @@ def init_model(key, dim, alg_cfg) -> TrainState:
 
 
 def init_model_with_learn_bwd(key, dim, alg_cfg) -> TrainState:
-    raise ValueError("Implement model initialization here of PISGRADNetLearnBwd")
+    """
+    Initializes the PISGRADNetLearnBwd model (which has 4 outputs)
+    and returns a Flax TrainState.
+    """
+    def build_lr_schedule(base_lr):
+        sched_cfg = getattr(alg_cfg, "lr_schedule", None)
+        if sched_cfg is None:
+            return lambda step: base_lr
+
+        sched_type = getattr(sched_cfg, "type", "constant")
+        match sched_type:
+            case "constant":
+                return lambda step: base_lr
+            case "multistep":
+                milestones_arr = (
+                    jnp.array(sched_cfg.milestones, dtype=jnp.int32)
+                    if len(sched_cfg.milestones) > 0
+                    else None
+                )
+
+                def multistep_fn(step):
+                    if milestones_arr is None:
+                        num_decays = 0
+                    else:
+                        num_decays = jnp.sum(step >= milestones_arr)
+                    return base_lr * (sched_cfg.gamma**num_decays)
+
+                return multistep_fn
+            case "cosine":
+                decay_steps = max(alg_cfg.iters, 1)
+                return optax.cosine_decay_schedule(
+                    init_value=base_lr,
+                    decay_steps=decay_steps,
+                    alpha=sched_cfg.end_factor,
+                )
+            case _:
+                raise ValueError(f"Invalid learning rate scheduler type: {sched_type}")
+
+    model = PISGRADNetLearnBwd(output_dim=dim, hidden_dim=alg_cfg.model.num_hid)
+
+    key, key_gen = jax.random.split(key)
+    params = model.init(
+        key,
+        jnp.ones([alg_cfg.batch_size, dim]),
+        jnp.ones([alg_cfg.batch_size, 1]),
+        jnp.ones([alg_cfg.batch_size, dim]),
+    )
+
+    optimizers_map = {
+        "network_optim": optax.adam(
+            learning_rate=build_lr_schedule(alg_cfg.step_size)
+        )
+    }
+
+    if not (alg_cfg.loss_type == "lv"):
+        params["params"]["logZ"] = jnp.array((alg_cfg.init_logZ,))
+        optimizers_map["logZ_optim"] = optax.adam(
+            learning_rate=build_lr_schedule(alg_cfg.logZ_step_size)
+        )
+
+    param_labels = path_aware_map(pisgrad_net_label_map, params)
+    partitioned_optimizer = optax.multi_transform(optimizers_map, param_labels)
+
+    optimizer = optax.chain(
+        optax.zero_nans(),
+        (
+            optax.clip_by_global_norm(alg_cfg.grad_clip)
+            if alg_cfg.grad_clip > 0
+            else optax.identity()
+        ),
+        partitioned_optimizer,
+    )
+
+    model_state = TrainState.create(apply_fn=model.apply, params=params, tx=optimizer)
+
+    return model_state
