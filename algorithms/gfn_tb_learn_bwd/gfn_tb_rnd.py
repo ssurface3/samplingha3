@@ -43,28 +43,38 @@ def per_sample_rnd_pinned_brownian(
         _step = step.astype(jnp.float32)
         t = _step / num_steps
         t_next = (_step + 1) / num_steps
-
         s = jax.lax.stop_gradient(s)
 
-        # Compute SDE components
         if use_lp:
             langevin = jax.lax.stop_gradient(jax.grad(target.log_prob)(s))
-
         else:
             langevin = jnp.zeros(dim)
-        model_output, _ = model_state.apply_fn(params, s, t * jnp.ones(1), langevin)
-
-        # Euler-Maruyama integration of the SDE
-        fwd_mean = s + model_output * dt
-        fwd_scale = sigma_t * jnp.sqrt(dt)
+            
+    
+        (drift, nn1, _, _), _ = model_state.apply_fn(params, s, t * jnp.ones(1), langevin)
+        
+        gamma = jnp.exp(1.0 * jnp.tanh(nn1))
+        fwd_mean = s + drift * dt
+        fwd_scale = sigma_t * jnp.sqrt(gamma * dt)  
+        
         s_next, key_gen = sample_kernel(key_gen, fwd_mean, fwd_scale)
         s_next = jax.lax.stop_gradient(s_next)
         fwd_log_prob = log_prob_kernel(s_next, fwd_mean, fwd_scale)
 
-        # Compute backward SDE components
-        shrink = (t_next - dt) / t_next  # == t / t_next when uniform time steps
-        bwd_mean = shrink * s_next
-        bwd_scale = sigma_t * jnp.sqrt(shrink * dt)
+    
+        if use_lp:
+            langevin_next = jax.lax.stop_gradient(jax.grad(target.log_prob)(s_next))
+        else:
+            langevin_next = jnp.zeros(dim)
+            
+        (_, _, nn2_next, nn3_next), _ = model_state.apply_fn(params, s_next, t * jnp.ones(1), langevin_next)
+        
+        alpha = 1.0 + 1.0 * jnp.tanh(nn2_next)
+        beta = 1.0 + 1.0 * jnp.tanh(nn3_next) 
+        
+        bwd_mean = s_next - (alpha / t_next) * s_next * dt
+        bwd_scale = sigma_t * jnp.sqrt(beta * (t / t_next) * dt)
+        
         bwd_log_prob = jax.lax.cond(
             step == 0,
             lambda _: jnp.array(0.0),
@@ -72,7 +82,6 @@ def per_sample_rnd_pinned_brownian(
             operand=(s, bwd_mean, bwd_scale),
         )
 
-        # Return next state and per-step output
         next_state = (s_next, key_gen)
         per_step_output = (s, fwd_log_prob, bwd_log_prob)
         return next_state, per_step_output
@@ -84,13 +93,21 @@ def per_sample_rnd_pinned_brownian(
         _step = step.astype(jnp.float32)
         t = _step / num_steps
         t_next = (_step + 1) / num_steps
-
         s_next = jax.lax.stop_gradient(s_next)
 
-        # Compute backward SDE components
-        shrink = (t_next - dt) / t_next
-        bwd_mean = shrink * s_next
-        bwd_scale = sigma_t * jnp.sqrt(shrink * dt)
+        if use_lp:
+            langevin_next = jax.lax.stop_gradient(jax.grad(target.log_prob)(s_next))
+        else:
+            langevin_next = jnp.zeros(dim)
+            
+        (_, _, nn2, nn3), _ = model_state.apply_fn(params, s_next, t * jnp.ones(1), langevin_next)
+        
+        alpha = 1.0 + 1.0 * jnp.tanh(nn2)
+        beta = 1.0 + 1.0 * jnp.tanh(nn3)
+        
+        bwd_mean = s_next - (alpha / t_next) * s_next * dt
+        bwd_scale = sigma_t * jnp.sqrt(beta * (t / t_next) * dt)
+        
         s, key_gen = jax.lax.cond(
             step == 0,
             lambda _: (jnp.zeros_like(s_next), key_gen),
@@ -98,6 +115,7 @@ def per_sample_rnd_pinned_brownian(
             operand=(key_gen, bwd_mean, bwd_scale),
         )
         s = jax.lax.stop_gradient(s)
+        
         bwd_log_prob = jax.lax.cond(
             step == 0,
             lambda _: jnp.array(0.0),
@@ -105,22 +123,23 @@ def per_sample_rnd_pinned_brownian(
             operand=(s, bwd_mean, bwd_scale),
         )
 
-        # Compute forward SDE components
         if use_lp:
             langevin = jax.lax.stop_gradient(jax.grad(target.log_prob)(s))
         else:
             langevin = jnp.zeros(dim)
-        model_output, _ = model_state.apply_fn(params, s, t * jnp.ones(1), langevin)
-
-        fwd_mean = s + model_output * dt
-        fwd_scale = sigma_t * jnp.sqrt(dt)
+            
+        (drift, nn1, _, _), _ = model_state.apply_fn(params, s, t * jnp.ones(1), langevin)
+        
+        gamma = jnp.exp(1.0 * jnp.tanh(nn1))
+        fwd_mean = s + drift * dt
+        fwd_scale = sigma_t * jnp.sqrt(gamma * dt)
+        
         fwd_log_prob = log_prob_kernel(s_next, fwd_mean, fwd_scale)
 
-        # Compute importance weight increment
         next_state = (s, key_gen)
         per_step_output = (s, fwd_log_prob, bwd_log_prob)
-        return next_state, per_step_output
-
+        return next_state, per_step_output 
+    
     if prior_to_target:
         init_x = input_state
         aux = (init_x, key)
