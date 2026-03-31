@@ -7,7 +7,6 @@ import jax.numpy as jnp
 import jax.random as random
 import numpy as np
 import numpyro.distributions as dist
-import pandas as pd
 import wandb
 from matplotlib import pyplot as plt
 from scipy.stats import wishart
@@ -28,7 +27,9 @@ class Gaussian(Target):
         seed = jax.random.PRNGKey(0)
 
         # set mixture components
-        locs = jax.random.uniform(seed, minval=min_mean_val, maxval=max_mean_val, shape=(dim,))
+        locs = jax.random.uniform(
+            seed, minval=min_mean_val, maxval=max_mean_val, shape=(dim,)
+        )
         seed, subkey = random.split(seed)
 
         # Set the random seed for Scipy
@@ -48,7 +49,11 @@ class Gaussian(Target):
         return log_prob
 
     def visualise(
-        self, samples: chex.Array = None, axes: List[plt.Axes] = None, show=False, clip=False
+        self,
+        samples: chex.Array = None,
+        axes: List[plt.Axes] = None,
+        show=False,
+        clip=False,
     ) -> None:
         plt.close()
         boarder = [-15, 15]
@@ -58,14 +63,17 @@ class Gaussian(Target):
             ax = fig.add_subplot()
 
             x, y = jnp.meshgrid(
-                jnp.linspace(boarder[0], boarder[1], 100), jnp.linspace(boarder[0], boarder[1], 100)
+                jnp.linspace(boarder[0], boarder[1], 100),
+                jnp.linspace(boarder[0], boarder[1], 100),
             )
             grid = jnp.c_[x.ravel(), y.ravel()]
             pdf_values = jax.vmap(jnp.exp)(self.log_prob(grid))
             pdf_values = jnp.reshape(pdf_values, x.shape)
             ax.contourf(x, y, pdf_values, levels=20, cmap="viridis")
             if samples is not None:
-                plt.scatter(samples[:300, 0], samples[:300, 1], c="r", alpha=0.5, marker="x")
+                plt.scatter(
+                    samples[:300, 0], samples[:300, 1], c="r", alpha=0.5, marker="x"
+                )
             # plt.xlabel('X')
             # plt.ylabel('Y')
             # plt.colorbar()
